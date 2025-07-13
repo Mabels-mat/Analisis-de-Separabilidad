@@ -1,0 +1,7 @@
+
+```{r}
+base_sylvatica <- readxl::read_excel("Base de datos completa Sylvatica con correcciones localidad.xlsx")
+base_dentrobatidos <- read_excel("Base dentrobatidos MEPN (1).xlsx", range = "A1:AJ768")
+base_dietas_ranas <- read_excel("Dietas_Ranas_Proyectos_DD.xlsx")
+```
+

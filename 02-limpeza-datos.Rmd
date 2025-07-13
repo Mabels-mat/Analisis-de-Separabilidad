@@ -1,0 +1,186 @@
+```{r}
+#### Comprovar que columnas existen
+colnames(base_dietas_ranas)
+colnames(base_sylvatica)
+colnames(base_dentrobatidos)
+
+### Convierto las coordenadas para la creación de los gráficos
+coordenadas <- function(coordenada) {
+  if (!is.na(coordenada) && grepl("W|S|E|N", coordenada)) {
+    valor <- as.numeric(gsub("[^0-9\\.]", "", coordenada))
+    if (grepl("W|S", coordenada)) {
+      return(-valor)
+    } else {
+      return(valor) 
+    }
+  } else {
+    return(as.numeric(coordenada))
+  }
+}
+
+# Convierto AÑO a numérico
+base_dentrobatidos <- base_dentrobatidos %>%
+  filter(PAIS == "Ecuador") %>%
+  mutate(
+    numero_col = paste0("MEPN_", `Nº CATÁLOGO`),  # Crear una columna 'numero_col'
+    AÑO = as.numeric(AÑO)  # Convertir AÑO a numérico
+  )
+
+# Convierto Año de la colección a númerico
+base_sylvatica <- base_sylvatica %>%
+  filter(!is.na(Latitud) & !is.na(Longitud) & Latitud != "-" & Longitud != "-") %>%
+  mutate(
+    Latitud = as.numeric(Latitud),
+    Longitud = as.numeric(Longitud),
+    `Año de la colección` = as.numeric(`Año de la colección`),
+    Altitud = as.numeric(Altitud)
+  )
+
+
+##Aplicamos la funcion de conversión de coordenadas en latitud y longitud a la base dietas ranas
+base_dietas_ranas <- base_dietas_ranas %>%
+  mutate(Longitud = sapply(Longitud, coordenadas), 
+         Latitud = sapply(Latitud, coordenadas)) %>%
+  filter(!is.na(Fecha)) %>% 
+  mutate(Fecha = as.Date(Fecha, format = "%Y-%m-%d"), 
+         `Año de la colección` = year(Fecha),
+         `Mes de colección` = month(Fecha, label = TRUE, abbr = FALSE)) %>% 
+  select(`Año de la colección`, `Mes de colección`, Longitud, Latitud, `Elevación (m)`, Especie)
+
+####------------------------------------------------------------------------------------------------------
+
+# Estandarizamos y limpiamos la base para que existan coincidencias con las columnas de otras bases
+
+dietas_ranas_estandarizada <- base_dietas_ranas %>%
+  mutate(numero_col = "Indeterminado", 
+         `COORD DECIMALES  LATITUD` = Latitud, 
+         `COORD DECIMALES  LONGITUD` = Longitud, 
+         `ALTITUD msnm` = `Elevación (m)`, 
+         ESPECIE = Especie, 
+         AÑO = `Año de la colección`, 
+         mes = `Mes de colección`) %>%
+  select(numero_col, ESPECIE, AÑO, mes, `COORD DECIMALES  LATITUD`, `COORD DECIMALES  LONGITUD`, `ALTITUD msnm`)
+
+
+base_sylvatica <- base_sylvatica %>%
+  mutate(
+    mes = tolower(`Mes de colección`), 
+    mes = as.numeric(factor(mes, levels = c("enero", "febrero", "marzo", "abril", "mayo", "junio", 
+                                            "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"))),
+    `ALTITUD msnm` = as.numeric(Altitud)  # Convertir Altitud a numérico
+  ) %>%
+  rename(numero_col = `Número de colección`, 
+         AÑO = `Año de la colección`, 
+         `COORD DECIMALES  LONGITUD` = Longitud, 
+         `COORD DECIMALES  LATITUD` = Latitud)
+
+#-------------------------------------------------------------------------------------------------------------
+
+## Tranformación de la columna mes a númerico
+dietas_ranas_estandarizada <- dietas_ranas_estandarizada %>%
+  mutate(mes = as.numeric(mes))
+
+
+#### Transformacion al formato correcto para que realize la compatibilidad con las otras columnas
+### de las otras bases
+base_dentrobatidos <- base_dentrobatidos %>%
+  mutate(mes = as.numeric(mes), 
+         `ALTITUD msnm` = as.numeric(`ALTITUD msnm`)) %>%
+  select(numero_col, ESPECIE, AÑO, mes, `COORD DECIMALES  LATITUD`, `COORD DECIMALES  LONGITUD`, `ALTITUD msnm`)
+
+
+
+base_final <- bind_rows(base_sylvatica, base_dentrobatidos, dietas_ranas_estandarizada) %>%
+  mutate(`COORD DECIMALES  LONGITUD` = ifelse(`COORD DECIMALES  LONGITUD` > 0, 
+                                              -`COORD DECIMALES  LONGITUD`, 
+                                              `COORD DECIMALES  LONGITUD`)) %>%
+  filter(`COORD DECIMALES  LATITUD` >= -5 & `COORD DECIMALES  LATITUD` <= 2,
+         `COORD DECIMALES  LONGITUD` >= -81 & `COORD DECIMALES  LONGITUD` <= -75)
+
+
+# Creamos los intervalos para la distribución de los datos por decada y cada 20 años
+base_final <- base_final %>%
+  mutate(
+    # Intervalo cada 20 años
+    periodo_20 = cut(AÑO, 
+                           breaks = c(1950, 1969, 1989, 2009, 2019),  # Definir correctamente los cortes de 20 años
+                           labels = c("1950-1969", "1970-1989", "1990-2009", "2010-2019"),
+                           right = FALSE),  # Para incluir el año inicial y excluir el final
+    
+    # Intervalo cada 10 años
+    periodo_decadas = cut(AÑO, 
+                          breaks = c(1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020),  # Cortes para décadas
+                          labels = c("1950-1959", "1960-1969", "1970-1979", "1980-1989", 
+                                     "1990-1999", "2000-2009", "2010-2019"),
+                          right = FALSE)  # Incluir el año inicial, excluir el final
+  )
+
+#Revisamos si la base final esta bien distribuida por década y cada 20 años
+
+summary(base_final$periodo_20)
+summary(base_final$periodo_decadas)
+
+# Obtener mapa de Ecuador
+mapa_ecuador <- ne_countries(scale = "medium", country = "Ecuador", returnclass = "sf")
+
+#-------------------------------CREACION DE GRAFICOS
+
+crear_grafico_periodo <- function(data, title) {
+  ggplot() +
+    geom_sf(data = mapa_ecuador, fill = "gray80", color = "white") +  
+    stat_bin2d(data = data, 
+               aes(x = `COORD DECIMALES  LONGITUD`, y = `COORD DECIMALES  LATITUD`, fill = ..count..), 
+               bins = 30) +
+    scale_fill_viridis_c(option = "viridis", name = "Frecuencia") +
+    labs(title = title, x = "Longitud", y = "Latitud") +
+    theme_minimal() +
+    coord_sf(xlim = c(-81, -75), ylim = c(-5, 1))
+}
+
+crear_graficos_periodo <- function(data, periodo_col, title_prefix) {
+  periodos <- levels(data[[periodo_col]])
+  plots <- lapply(periodos, function(periodo) {
+    data_periodo <- data %>% filter(!!sym(periodo_col) == periodo)
+    if (nrow(data_periodo) > 0) { 
+      crear_grafico_periodo(data_periodo, paste(title_prefix, periodo))
+    }
+  })
+  
+
+  # Filtrar gráficos que no tengan datos NULL
+  plots <- Filter(Negate(is.null), plots)
+  
+  num_plots <- length(plots)
+  if (num_plots == 4) {
+    do.call(grid.arrange, c(plots, nrow = 2, ncol = 2))
+  } 
+  else if (num_plots > 4) {
+    num_cols <- ceiling(sqrt(num_plots))
+    num_rows <- ceiling(num_plots / num_cols)
+    do.call(grid.arrange, c(plots, nrow = num_rows, ncol = num_cols))
+  }
+}
+#### Creación de gráficos cada 20 años
+crear_graficos_periodo(base_final, "periodo_20", "Periodo")
+
+###$ Creación de gráficos cada 10 años
+crear_graficos_periodo(base_final, "periodo_decadas", "Década")
+
+
+### Muestra de la distribuciones de los datos
+
+tabla_periodo_20 <- base_final %>%
+  group_by(periodo_20) %>%
+  summarise(Conteo = n()) %>%
+  mutate(Tipo = "Periodo de 20 años")  
+
+tabla_periodo_20
+
+tabla_periodo_decadas <- base_final %>%
+  group_by(periodo_decadas) %>%
+  summarise(Conteo = n()) %>%
+  mutate(Tipo = "Décadas")  
+
+tabla_periodo_decadas
+```
+

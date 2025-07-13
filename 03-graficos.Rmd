@@ -1,0 +1,56 @@
+```{r}
+source("Codigos_extras.R")
+#------------------------
+datos_frecuencia <- base_final %>% 
+  group_by(`COORD DECIMALES  LONGITUD`,`COORD DECIMALES  LATITUD`, periodo_decadas) %>% 
+filter(!is.na(periodo_decadas)) %>% mutate(periodo_decadas=as.numeric(periodo_decadas))
+
+ecuador_sf <- ne_countries(scale = "medium", country = "Ecuador", returnclass = "sf")
+ecuador_continental <- ecuador_sf %>%
+  st_crop(xmin = -81, xmax = -75, ymin = -5, ymax = 2)
+
+ecuador_proj <- st_transform(ecuador_continental, crs = 32717)
+ecuador_owin <- as.owin(ecuador_proj)
+colnames(datos_frecuencia) <- trimws(colnames(datos_frecuencia))
+
+any(grepl("LONGITUD", colnames(datos_frecuencia)))
+
+any(grepl("LATITUD", colnames(datos_frecuencia))) 
+
+colnames(datos_frecuencia) <- gsub("\\s+", " ", colnames(datos_frecuencia))  # Reemplaza múltiples espacios por uno solo
+colnames(datos_frecuencia) <- trimws(colnames(datos_frecuencia))  # Elimina espacios al inicio y fin
+
+base_sf <- st_as_sf(datos_frecuencia,
+                    coords = c("COORD DECIMALES LONGITUD", "COORD DECIMALES LATITUD"),
+                    crs = 4326)
+
+base_proj <- st_transform(base_sf, crs = 32717)
+
+coords_proj <- st_coordinates(base_proj)
+
+spatial_data <- ppp(coords_proj[,1], coords_proj[,2], window = ecuador_owin, marks = datos_frecuencia$periodo_decadas)
+
+puntos_dentro <- inside.owin(spatial_data$x, spatial_data$y, ecuador_owin)
+
+spatial_data<- spatial_data[puntos_dentro]
+
+
+
+par(mar=c(0,0,2,0))
+
+
+plot(spatial_data, main="Distribución de incidencia espacio-temporal")
+
+# Optimización del suavizamiento espacial
+sigma.s <- bw.scott(spatial_data)  # Estimación automática de suavizamiento espacial
+sigma.t <- bw.scott(as.ppp(data.frame(x=spatial_data$marks, y=rep(1, length(spatial_data$marks))), c(0, max(spatial_data$marks), 0, 2)))
+
+# Calcular la intensidad espacial con un estimador de Kernel
+spatial_density <- density.ppp(spatial_data, sigma=sigma.s[1], eps = c(5000, 5000))
+ 
+densidad <- density(spatial_data, weights = marks(spatial_data), sigma = sigma.s[1])
+
+# Graficar el mapa de calor
+plot(densidad, main = "Mapa de intensidad espacial")
+```
+

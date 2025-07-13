@@ -1,0 +1,110 @@
+```{r}
+### Espacila data para el analisis en periodos
+
+datos_frecuencia1 <- base_final %>% 
+  group_by(`COORD DECIMALES  LONGITUD`,`COORD DECIMALES  LATITUD`, AÑO) %>% 
+filter(!is.na(AÑO)) %>% mutate(AÑO=as.numeric(AÑO))
+
+colnames(datos_frecuencia1) <- trimws(colnames(datos_frecuencia1))
+
+any(grepl("LONGITUD", colnames(datos_frecuencia1)))
+
+any(grepl("LATITUD", colnames(datos_frecuencia1))) 
+
+colnames(datos_frecuencia1) <- gsub("\\s+", " ", colnames(datos_frecuencia1))  # Reemplaza múltiples espacios por uno solo
+colnames(datos_frecuencia1) <- trimws(colnames(datos_frecuencia1))  # Elimina espacios al inicio y fin
+
+base_sf1 <- st_as_sf(datos_frecuencia1,
+                    coords = c("COORD DECIMALES LONGITUD", "COORD DECIMALES LATITUD"),
+                    crs = 4326)
+
+base_proj1 <- st_transform(base_sf1, crs = 32717)
+
+coords_proj1 <- st_coordinates(base_proj1)
+
+spatial_data1 <- ppp(coords_proj1[,1], coords_proj1[,2], window = ecuador_owin, marks = datos_frecuencia1$AÑO)
+
+puntos_dentro1 <- inside.owin(spatial_data1$x, spatial_data1$y, ecuador_owin)
+
+spatial_data1 <- spatial_data1[puntos_dentro1]
+
+sigma.s1 <- bw.scott(spatial_data1)  # Estimación automática de suavizamiento espacial
+sigma.t1 <- bw.scott(as.ppp(data.frame(x=spatial_data1$marks, y=rep(1, length(spatial_data1$marks))), c(0, max(spatial_data1$marks), 0, 2)))
+
+# Crear la secuencia de tiempos automáticamente
+times <- seq(from = min(spatial_data1$marks),
+             to = max(spatial_data1$marks),
+             length.out = 15)
+# Resolución de la grilla ajustada según la dispersión espacial de los datos
+dimyx <- c(59, 64)
+# Número de permutaciones (usar 999 para resultados más robustos)
+n.perm <- 99
+# Crear patrones permutados en el tiempo
+perm.list <- permute.times(spatial_data1, n=n.perm)
+
+# Lista para almacenar los resultados de cada permutación
+res.list <- list()
+# Calcular la estadística S, S.space y S.time para cada permutación
+for (i in 1:(n.perm+1)){
+  res.list[[i]] <- S.stats(perm.list[[i]], sigma.t=sigma.t1[1], sigma.s=sigma.s1[1] , dimyx=dimyx,
+                           times=times, start.time=min(spatial_data1$marks),
+                           end.time=max(spatial_data1$marks))
+}
+# ============================================
+# Envolvente Global para S.time (en el tiempo)
+# ============================================
+dim.t <- length(times)
+allstats <- array(dim=c(dim.t, n.perm+1))
+for (i in 1:(n.perm+1)){
+  allstats[,i] <- res.list[[i]]$S.time
+}
+cs <- create_curve_set(list(obs=allstats[,1], sim_m=allstats[,2:(n.perm+1)]))
+S.time.GET <- global_envelope_test(cs)
+# Graficar el resultado del test
+plot(S.time.GET, main="Envolvente Global para S.time")
+
+# ============================================
+# Envolvente Global para S.space (en el espacio)
+# ============================================
+aux.dim <- length(res.list[[1]]$S.space)
+allstats <- array(dim=c(aux.dim, n.perm+1))
+for (i in 1:(n.perm+1)){
+  allstats[,i] <- res.list[[i]]$S.space
+}
+cs <- create_curve_set(list(r=data.frame(res.list[[1]]$coordinates.2D,
+                                         width=res.list[[1]]$width, height=res.list[[1]]$height),
+                            obs=allstats[,1], sim_m=allstats[,2:(n.perm+1)]))
+S.space.GET <- global_envelope_test(cs)
+# Graficar el resultado del test en espacio
+plot(S.space.GET, main="Envolvente Global para S.space")
+
+
+# ============================================
+# Envolvente Global para S (total)
+# ============================================
+aux.dim <- length(res.list[[1]]$S)
+allstats <- array(dim=c(aux.dim, n.perm+1))
+for (i in 1:(n.perm+1)){
+  allstats[,i] <- res.list[[i]]$S
+}
+cs <- create_curve_set(list(obs=allstats[,1], sim_m=allstats[,2:(n.perm+1)]))
+S.GET <- global_envelope_test(cs)
+# Mostrar p-valor del test
+p_value <- attr(S.GET, "p")
+print(paste("P-valor del test global S:", p_value))
+# Graficar el resultado de la envolvente global para S
+plot(S.GET, main="Envolvente Global para S")
+
+# ============================================
+# Graficar las funciones observadas y los límites de la envolvente
+# ============================================
+plot.global_envelope.3D(S.GET=S.GET, coordinates.3D=res.list[[1]]$coordinates.3D, what="obs")
+
+plot.global_envelope.3D(S.GET=S.GET, coordinates.3D=res.list[[1]]$coordinates.3D, what="hi")
+
+plot.global_envelope.3D(S.GET=S.GET, coordinates.3D=res.list[[1]]$coordinates.3D, what="lo")
+
+save(spatial_data1,sigma.s1,sigma.t1,file = "objetos_shiny.RData")
+```
+
+

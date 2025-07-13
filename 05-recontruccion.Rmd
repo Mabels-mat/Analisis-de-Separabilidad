@@ -1,0 +1,85 @@
+```{r}
+
+intensity_est <- intensityST.nonsep.grid(spatial_data1, sigma.s = sigma.s1[1], sigma.t = sigma.t1[1], times = times , start.time=min(spatial_data1$marks),end.time=max(spatial_data1$marks))
+
+intensity_points <- intensityST.nonsep.points(spatial_data1, sigma.s = sigma.s1[1], sigma.t = sigma.t1[1], start.time=min(spatial_data1$marks),end.time=max(spatial_data1$marks))
+
+# Graficar las imágenes para cada tiempo
+par(mfrow = c(2, 3))  # Organiza las imágenes en una cuadrícula de 2x2
+for(i in 1:length(intensity_est)) {
+  plot(intensity_est[[i]], main = paste("Time:", times[i]))
+}
+
+# Graficar la intensidad en los puntos
+plot(intensity_points, type = "l", col = "blue", 
+     xlab = "Points", ylab = "Intensity",
+     main = "Intensidad temporal")
+
+
+
+Tmax <- 20 #
+# Calcular la función K(r,t)
+K_function <- Krt(X = spatial_data1, lambda = intensity_points, 
+                  Rmax = 1000000, Tmax = Tmax, grid = 32, 
+                  start.time = min(spatial_data1$marks), 
+                  end.time = max(spatial_data1$marks))
+
+# Graficar la función K(r,t)
+# Aquí usaremos image para una visualización más completa de la superficie.
+plot(K_function, type= 'l', main = "Function K(r,t)", xlab = "r (spatial)", ylab = "t (temporal)")
+image.plot(K_function, main = "Function K(r,t)", xlab = "r (spatial)", ylab = "t (temporal)")
+
+
+L_function <- Lrt(X = spatial_data1, lambda = intensity_points, 
+                  Rmax = 1000000, Tmax = Tmax, grid = 32, 
+                  start.time = min(spatial_data1$marks), 
+                  end.time = max(spatial_data1$marks))
+
+plot(L_function, type= 'l', main = "Function Lr,t)", xlab = "r (spatial)", ylab = "t (temporal)")
+image.plot(L_function, main = "Function L(r,t)", xlab = "r (spatial)", ylab = "t (temporal)")
+
+ts <-   seq(1950,2020,by=1)         # Tus categorías temporales ya codificadas como 1 a 7
+Rmax <- 100000     # Límite para distancia espacial
+Tmax <- 20     # Límite para distancia temporal
+grid <- 32           # Resolución de la grilla
+
+# Controles de la simulación
+controls <- list(
+  max.it=500,        # Número máximo de iteraciones
+  max.reject = 200,    # Número máximo de rechazos
+  weight.l = 0.5,        # Peso del término de la función L
+  weight.int = 1e7     # Peso del término de intensidad
+)
+
+# Ejecutar la reconstrucción estocástica
+res <- reconstruct.ST1(
+  X = spatial_data1,
+  sigma.s = sigma.s1[1],
+  sigma.t = sigma.t1[1],
+  ts = ts,
+  start.time = min(ts),
+  end.time = max(ts),
+  Rmax = Rmax,
+  Tmax = Tmax,
+  grid = grid,      
+  controls = controls
+)
+
+
+
+# Visualizar el patrón reconstruido
+par(mfrow = c(1, 1))
+plot(res$Output, main = "Patrón reconstruido")
+
+res$Output
+
+# Visualizar evolución de la energía
+plot(res$Energy[1,], type = "l", main = "Evolución de la energía")
+
+# Revisar contribuciones individuales
+print(res$Elambda)
+print(res$EL)
+
+```
+```
+
