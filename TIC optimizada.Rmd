@@ -1,0 +1,111 @@
+---
+title: "Mecanismo de selección de la estructura espacial y sus aplicaciones"
+author: "Mabel Salazar"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(readxl)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(sf)  
+library(viridis) 
+library(rnaturalearth) 
+library(rnaturalearthdata)
+library(gridExtra)
+library(writexl)
+library(spatstat)
+library(stpp)
+library(plotly)
+library(spatstat.geom)
+library(GET)
+library(fields)
+library(RColorBrewer)
+```
+
+
+# Carga de Base de datos
+
+```{r child = "01-carga-de-datos.Rmd"}
+```
+
+# Gráficas de agrupación en décadas y 20 años
+
+```{r child = "02-limpeza-datos.Rmd"}
+```
+
+# Intensidad y distribución espacio temporal
+
+```{r child = "03-graficos.Rmd"}
+```
+
+- Existen concentraciones espaciales claras de registros en ciertas zonas como el norte y centro de la región andina.
+
+- En etapas tempranas (círculos pequeños), los registros se concentran en regiones particulares, mientras que en décadas más recientes (círculos grandes), los registros se expanden hacia otras regiones del país.
+
+- Esta variación en la localización espacial a lo largo del tiempo sugiere una posible dependencia entre espacio y tiempo.
+
+La escala de colores representa la magnitud de la intensidad:
+
+- Azul oscuro: baja intensidad.
+
+- Rosado y amarillo: alta intensidad.
+
+Se observa una alta concentración de registros en el norte del país, particularmente en la región noroccidental de la costa y parte del nororiente (zona amazónica norte).
+
+El resto del país, incluyendo la Sierra central, el sur andino y el sur amazónico, presenta intensidades mucho más bajas.
+
+# Envolventes 
+
+```{r child = "04-envolventes.Rmd"}
+```
+
+**Intensidad Temporal**
+
+Hay periodos específicos donde el patrón espacio-temporal se desvía significativamente del modelo nulo. Esto confirma que no hay independencia entre cuándo y dónde ocurre la presencia de la especie.
+
+**Intensidad Espacial**
+
+Las áreas rojas y azules indican zonas donde la intensidad espacial cambia significativamente con el tiempo.
+Se observan focos no aleatorios de actividad, como en el centro-norte y sur del país, lo cual refuerza la evidencia de estructura espacio-temporal dependiente.
+
+**Intensidad Espacio Temporal**
+
+Se observa que la función test sale de la envolvente muchas veces a lo largo del rango de distancias, lo cual indica que la intensidad del patrón observado no puede explicarse solo por separabilidad. La dependencia espacio-temporal está presente en múltiples escalas.
+
+**Gráficas de las funciones observadas y los límites de la envolvente**
+
+**Gráfica Obs**
+
+- Se observa que las zonas de concentración de observaciones cambian con el tiempo.
+
+**Grafica hi**
+
+Este panel marca en rojo las regiones donde la intensidad observada es mayor de lo esperado bajo la hipótesis nula de separabilidad.
+
+Estas zonas cambian en cada periodo, apareciendo en diferentes partes del país.
+
+Esto indica que las zonas de alta intensidad no son constantes a lo largo del tiempo, lo cual viola la suposición de separabilidad espacio-temporal.
+
+**Grafica lo**
+
+Este panel muestra en rojo las regiones donde la intensidad observada es menor de lo esperado.
+
+- Esto evidencia una reconfiguración del patrón espacial a lo largo del tiempo.
+
+Estas zonas de baja intensidad que varían también refuerzan la idea de dependencia entre espacio y tiempo.
+
+# Reconstrucción estocastica
+
+```{r child = "05-recontruccion.Rmd"}
+```
+
